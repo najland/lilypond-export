@@ -234,7 +234,7 @@
                         (list-ref (string-split clefGlyph #\.) 1)
                         (+ 3 (/ clefPosition 2))
                         (if (and (not (= 0 clefTransposition))(= 0 (modulo clefTransposition 7)))
-                            (format "<clef-octave-change>~A</clef-octave-change>" (/ clefTransposition 7))
+                            (format #f "<clef-octave-change>~A</clef-octave-change>" (/ clefTransposition 7))
                             ""))
                       (if doattr (writeln "</attributes>"))
                       ))))

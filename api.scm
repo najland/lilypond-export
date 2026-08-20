@@ -470,7 +470,7 @@
     (let* ((exporter (ly:assoc-get 'exporter options exportHumdrum #f))
            (suffix (ly:assoc-get 'filesuffix options (object-property exporter 'file-suffix) #f))
            (filename (ly:assoc-get 'filename options
-                       (format "~A.~A"
+                       (format #f "~A.~A"
                          (ly:assoc-get 'filebase options (ly:parser-output-name) #f)
                          (if (string? suffix) suffix
                              (begin
