@@ -306,6 +306,13 @@
                            (tree-set! musicstep `(,@steppath tie) (cons 'start (or (tree-get musicstep `(,@steppath tie)) '())))
                            (ly:context-set-property! context ctprop::tie-pending (ly:music-property stored 'pitch))))))
 
+                   ((eq? (ly:music-property music 'name) 'BeamEvent)
+                    ; manual [ ] beams are acknowledged later via their
+                    ; causing BeamEvent (not a NoteEvent), which otherwise
+                    ; never gets a 'timestamp -- crashing the beam-interface
+                    ; acknowledger below when it looks one up
+                    (ly:music-set-property! music 'timestamp (cons bar moment)))
+
                    ((eq? (ly:music-property music 'name) 'SlurEvent)
                     ; a slur on a whole chord only fires as its own event, not a note articulation
                     (let* ((dir (ly:music-property music 'span-direction))
@@ -341,8 +348,8 @@
                        ((= 1 dir)
                         (let ((tup-time (cdr tuplet-time)))
                           ;(ly:message "tuplet time ~A ~A" tup-time (cons bar moment))
-
-                          (tree-set! musicexport `(,(car tup-time) ,(cdr tup-time) ,@steppath tuplet) `(stop . #f))
+                          (if (pair? tup-time)
+                              (tree-set! musicexport `(,(car tup-time) ,(cdr tup-time) ,@steppath tuplet) `(stop . #f)))
                           ))
                        )))
                    )))
@@ -386,16 +393,17 @@
             ((music-is? cause 'NoteEvent)
              (let ((start-timestamp (ly:music-property cause 'timestamp))
                    (end-timestamp (car beam-time)))
-               (if (not (null? start-timestamp)) ; this skips grace notes
-                   (tree-set! musicexport (list (car start-timestamp) (cdr start-timestamp) staff-id voice-id 'beam) 'start) )
-               (if (not (null? end-timestamp)) ; this skips grace notes
+               (if (pair? start-timestamp) ; guards against grace notes and any other untimestamped cause
+                   (tree-set! musicexport (list (car start-timestamp) (cdr start-timestamp) staff-id voice-id 'beam) 'start))
+               (if (pair? end-timestamp)
                    (tree-set! musicexport (list (car end-timestamp) (cdr end-timestamp) staff-id voice-id 'beam) 'end))
                ;(ly:message "beam ~A ~A" start-timestamp end-timestamp)
                ))
             ((music-is? cause 'BeamEvent)
              (let ((start-timestamp (ly:music-property cause 'timestamp))
                    (end-timestamp (cons bar moment)))
-               (tree-set! musicexport (list (car start-timestamp) (cdr start-timestamp) staff-id voice-id 'beam) 'start)
+               (if (pair? start-timestamp)
+                   (tree-set! musicexport (list (car start-timestamp) (cdr start-timestamp) staff-id voice-id 'beam) 'start))
                (tree-set! musicexport (list (car end-timestamp) (cdr end-timestamp) staff-id voice-id 'beam) 'end)
                ;(ly:message "beam ~A ~A" start-timestamp end-timestamp)
                ))
