@@ -264,6 +264,13 @@
                             (tree-set! musicexport (list (+ bar i) (ly:make-moment 0) staff-id voice-id)
                               (make-music 'RestEvent 'duration (moment->duration mlen)))))))
 
+                   ((eq? (ly:music-property music 'name) 'SlurEvent)
+                    ; a slur on a whole chord only fires as its own event, not a note articulation
+                    (let* ((dir (ly:music-property music 'span-direction))
+                           (marks (tree-get musicstep `(,@steppath slur))))
+                      (tree-set! musicstep `(,@steppath slur)
+                        (cons (if (eqv? -1 dir) 'start 'stop) (if (list? marks) marks '())))))
+
                    ((eq? (ly:music-property music 'name) 'TupletSpanEvent)
                     (let ((timestamp (ly:music-property music 'timestamp))
                           (num (ly:music-property music 'numerator))

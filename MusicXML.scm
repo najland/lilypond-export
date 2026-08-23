@@ -130,6 +130,9 @@
            (writeln "<tuplet number=\"1\" placement=\"above\" type=\"~A\" />" (car tuplet))
            (writeln "</notations>")
            )))
+    (define (writeslurs marks)
+      (for-each (lambda (m) (writeln "<notations><slur type=\"~A\" number=\"1\"/></notations>" (if (eq? m 'start) "start" "stop")))
+        (if (list? marks) marks '())))
     (define (acctext accidental)
       (case accidental
         ((0) "natural")
@@ -145,6 +148,7 @@
             (beam (ly:assoc-get 'beam opts))
             (tuplet (ly:assoc-get 'tuplet opts))
             (lyrics (ly:assoc-get 'lyrics opts))
+            (slur (ly:assoc-get 'slur opts))
             (moment (ly:assoc-get 'moment opts)))
 ;(ly:message "-----> lyrics ~A" lyrics)
         (case (ly:music-property m 'name)
@@ -164,6 +168,7 @@
            (if (symbol? beam) (writeln "<beam number=\"1\">~A</beam>" beam))
            (writetimemod dur)
            (writetuplet tuplet)
+           (writeslurs (if chord '() slur))
            (if (and (not chord) (list? lyrics))
                (for-each
                 (lambda (indexed-lyric)
@@ -314,6 +319,7 @@
                                     (accidental (tree-get musicexport (list measure moment staff voice 'accidental)))
                                     (tuplet (tree-get musicexport (list measure moment staff voice 'tuplet)))
                                     (lyrics (tree-get musicexport (list measure moment staff voice 'lyrics)))
+                                    (slur (tree-get musicexport (list measure moment staff voice 'slur)))
                                     )
                                 (case beam
                                   ((start) (set! beamcont 'continue))
@@ -329,7 +335,8 @@
                                   `(accidental . ,accidental)
                                   `(moment . ,moment)
                                   `(tuplet . ,tuplet)
-                                  `(lyrics . ,lyrics))
+                                  `(lyrics . ,lyrics)
+                                  `(slur . ,slur))
                                 (if (ly:duration? dur)
                                     (set! backup (+ backup (* (duration-factor dur) divisions))))
                                 ))
