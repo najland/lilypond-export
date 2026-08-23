@@ -239,6 +239,31 @@
                       ; store music
                       (tree-set! musicstep steppath music)))
 
+                   ((memq (ly:music-property music 'name) '(MultiMeasureRestEvent SkipEvent))
+                    ; split into one whole-measure rest per measure spanned, so a
+                    ; tacet staff isn't dropped from the export entirely (covers
+                    ; both R1*n multi-measure rests and s1*n skips). SkipEvent is
+                    ; also used for sub-measure alignment tricks (e.g. "s4 c4 d4
+                    ; e4"), so only expand when it starts on the downbeat AND its
+                    ; length is an exact whole-measure multiple -- anything else
+                    ; is left alone rather than risking a bogus rest on top of
+                    ; real notes later in the same measure.
+                    (let* ((ratio (lambda (m d) (cond ((ly:moment? m) (/ (ly:moment-main-numerator m) (ly:moment-main-denominator m))) ((number? m) m) (else d))))
+                           (staff-id (ly:context-property context ctprop::staff-id))
+                           (voice-id (ly:context-property context ctprop::voice-id))
+                           (mlen-raw (ly:context-property context 'measureLength (ly:make-moment 1)))
+                           (permeasure (ratio mlen-raw 1))
+                           (mlen (if (ly:moment? mlen-raw) mlen-raw (ly:make-moment permeasure)))
+                           (total (ratio (ly:music-length music) 1))
+                           (n (and (equal? moment (ly:make-moment 0))
+                                   (> permeasure 0)
+                                   (integer? (/ total permeasure))
+                                   (/ total permeasure))))
+                      (if (and n (> n 0))
+                          (do ((i 0 (1+ i))) ((= i n))
+                            (tree-set! musicexport (list (+ bar i) (ly:make-moment 0) staff-id voice-id)
+                              (make-music 'RestEvent 'duration (moment->duration mlen)))))))
+
                    ((eq? (ly:music-property music 'name) 'TupletSpanEvent)
                     (let ((timestamp (ly:music-property music 'timestamp))
                           (num (ly:music-property music 'numerator))
