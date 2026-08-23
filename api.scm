@@ -313,6 +313,20 @@
                       (tree-set! musicstep `(,@steppath slur)
                         (cons (if (eqv? -1 dir) 'start 'stop) (if (list? marks) marks '())))))
 
+                   ((and (eq? (ly:music-property music 'name) 'ArticulationEvent)
+                         (eq? 'fermata (ly:music-property music 'articulation-type)))
+                    ; same story as all articulations below: on a whole chord
+                    ; this only fires as its own event, not a note articulation
+                    (tree-set! musicstep `(,@steppath fermata) #t))
+
+                   ((eq? (ly:music-property music 'name) 'ArticulationEvent)
+                    ; staccato, accent, tenuto, bowings, etc. -- collect the
+                    ; raw type symbols here; MusicXML.scm knows which ones it
+                    ; can render and simply skips anything else
+                    (let ((marks (tree-get musicstep `(,@steppath articulations))))
+                      (tree-set! musicstep `(,@steppath articulations)
+                        (cons (ly:music-property music 'articulation-type) (if (list? marks) marks '())))))
+
                    ((eq? (ly:music-property music 'name) 'TupletSpanEvent)
                     (let ((timestamp (ly:music-property music 'timestamp))
                           (num (ly:music-property music 'numerator))
