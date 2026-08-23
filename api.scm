@@ -453,12 +453,21 @@
 
         ; detect time signatures
         ((time-signature-event engraver event)
-         (let ((musicstep (ly:context-property context ctprop::export-step))
-               (staff-id (ly:context-property context ctprop::staff-id)))
-           (tree-set! musicstep (list staff-id 'timesig)
-             (cons (ly:event-property event 'numerator)(ly:event-property event 'denominator)))
-           (tree-set! musicstep `(timesig)
-             (cons (ly:event-property event 'numerator)(ly:event-property event 'denominator)))
+         (let* ((musicstep (ly:context-property context ctprop::export-step))
+                (staff-id (ly:context-property context ctprop::staff-id))
+                ; LilyPond >= 2.26 stores the fraction as a single 'time-signature
+                ; pair; older versions expose separate 'numerator/'denominator
+                ; properties instead. Support both.
+                (ts-pair (ly:event-property event 'time-signature))
+                (num (if (pair? ts-pair) (car ts-pair) (ly:event-property event 'numerator)))
+                (den (if (pair? ts-pair) (cdr ts-pair) (ly:event-property event 'denominator))))
+           (if (and (number? num) (number? den))
+               (begin
+                (tree-set! musicstep (list staff-id 'timesig)
+                  (cons num den))
+                (tree-set! musicstep '(timesig)
+                  (cons num den)))
+               (ly:warning "could not determine time signature fraction from event: ~S" event))
            ))
         )
        ))))
