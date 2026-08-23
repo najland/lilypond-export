@@ -65,6 +65,7 @@
 (define ctprop::music-export 'music-export)
 (define ctprop::export-step 'music-export-step)
 (define ctprop::lyrics 'lyric-events)
+(define ctprop::lyric-hyphen-box 'lyric-hyphen-box)
 
 ; The use of '@@' indicates bad code style! But how else can we add context properties in external code?
 ; add used context-properties
@@ -77,6 +78,7 @@
 ((@@ (lily) translator-property-description) ctprop::music-export tree? "Music export store")
 ((@@ (lily) translator-property-description) ctprop::export-step tree? "Music export step store")
 ((@@ (lily) translator-property-description) ctprop::lyrics list? "current lyric events")
+((@@ (lily) translator-property-description) ctprop::lyric-hyphen-box pair? "mutable box marking whether the last lyric syllable is followed by a hyphen")
 
 ; combine note-events to event-chord
 (define (combine-notes current music)
@@ -366,15 +368,31 @@
                       (bar (ly:context-property context 'currentBarNumber 1))
                       (moment (ly:context-property context 'measurePosition (ly:make-moment 0)))
                       (lpath (list staff-id voice-id 'lyrics))
-                      (lyrics (ly:context-property voice ctprop::lyrics)))
+                      (lyrics (ly:context-property voice ctprop::lyrics))
+                      ; was the previous syllable of this stanza followed by a hyphen?
+                      (prev-box (ly:context-property context ctprop::lyric-hyphen-box))
+                      (preceded (and (pair? prev-box) (car prev-box)))
+                      ; box for THIS syllable; mutated to #t by a following hyphen-event
+                      (this-box (list #f))
+                      (entry (list text preceded this-box)))
 
                  ; create/extend list of lyric events found for the associated voice context
-                 (set! lyrics (if (list? lyrics) `(,@lyrics ,text) (list text)))
+                 (set! lyrics (if (list? lyrics) `(,@lyrics ,entry) (list entry)))
                  (tree-set! musicstep lpath lyrics)
-                 (ly:context-set-property! voice ctprop::lyrics lyrics))
+                 (ly:context-set-property! voice ctprop::lyrics lyrics)
+                 ; remember this syllable's box so a following hyphen-event can mark it
+                 (ly:context-set-property! context ctprop::lyric-hyphen-box this-box))
 
                ; TODO if we have no associated voice context, what shall we do?
                (ly:message "syl ~A" text))
+           ))
+
+        ; detect a hyphen between two lyric syllables of the same stanza
+        ; (word continues across notes) and mark the preceding syllable
+        ((hyphen-event engraver event)
+         (let ((last-box (ly:context-property context ctprop::lyric-hyphen-box)))
+           (if (pair? last-box)
+               (set-car! last-box #t))
            ))
         )
 
@@ -527,4 +545,3 @@
         }
       }
     #}))
-

@@ -159,9 +159,23 @@
                (for-each
                 (lambda (indexed-lyric)
                   ;(ly:message "~A" indexed-lyric)
-                  (writeln "<lyric number=\"~A\"><syllabic>single</syllabic><text>~A</text></lyric>"
-                    (+ 1 (list-ref indexed-lyric 1))
-                    (list-ref indexed-lyric 0))
+                  (let* ((entry (list-ref indexed-lyric 0))
+                         (num (list-ref indexed-lyric 1))
+                         ; entry is (text preceded-by-hyphen? box), where
+                         ; (car box) tells whether this syllable is followed
+                         ; by a hyphen. Older/foreign entries may just be a
+                         ; plain string; fall back to "single" for those.
+                         (text (if (pair? entry) (car entry) entry))
+                         (preceded (and (pair? entry) (list-ref entry 1)))
+                         (box (and (pair? entry) (list-ref entry 2)))
+                         (followed (and (pair? box) (car box)))
+                         (syllabic (cond
+                                    ((and preceded followed) "middle")
+                                    (preceded "end")
+                                    (followed "begin")
+                                    (else "single"))))
+                    (writeln "<lyric number=\"~A\"><syllabic>~A</syllabic><text>~A</text></lyric>"
+                      (+ 1 num) syllabic text))
                   ) (map list lyrics (iota (length lyrics)))))
 
            (writeln "</note>"))
