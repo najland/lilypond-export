@@ -44,6 +44,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; musicXML export
 
+; number of sharps (positive) or flats (negative) implied by a LilyPond
+; keyAlterations alist (list of (degree . alteration), alteration in whole-
+; tone units: 1/2 = one sharp/flat). Standard diatonic keys only ever alter
+; degrees by the same amount in the same direction, so twice the sum of all
+; alterations is exactly the signed sharp/flat count MusicXML expects.
+(define (keyalist->fifths alist)
+  (inexact->exact (round (* 2 (apply + (map cdr alist))))))
+
+
 (define (duration-factor dur)
   (*
    (/ 4 (expt 2 (ly:duration-log dur)))
@@ -253,6 +262,15 @@
                       (if doattr (writeln "</attributes>"))
                       ))))
 
+             (define (writekey measure moment doattr)
+               (let ((keydata (tree-get musicexport (list measure moment staff 'keysig))))
+                 (if (list? keydata)
+                     (let ((fifths (keyalist->fifths keydata)))
+                       (if doattr (writeln "<attributes>"))
+                       (writeln "<key><fifths>~A</fifths></key>" fifths)
+                       (if doattr (writeln "</attributes>"))
+                       ))))
+
              (writeln "<part id=\"P~A\">" staff)
 
              (for-each
@@ -268,6 +286,7 @@
 
                   (writeln "<attributes>")
                   (writeln "<divisions>~A</divisions>" divisions) ; divisions by measure?
+                  (writekey measure first-moment #f)
                   (let ((meter (tree-get musicexport (list measure first-moment staff 'timesig))))
                     (if (number-pair? meter)
                         (writeln "<time><beats>~A</beats><beat-type>~A</beat-type></time>" (car meter)(cdr meter))))
@@ -282,7 +301,9 @@
                       (lambda (moment)
                         (let ((music (tree-get musicexport (list measure moment staff voice))))
                           (if (not (equal? moment (ly:make-moment 0)))
-                              (writeclef measure moment #t))
+                              (begin
+                               (writekey measure moment #t)
+                               (writeclef measure moment #t)))
                           (if (ly:music? music)
                               (let ((dur (ly:music-property music 'duration))
                                     (beam (tree-get musicexport (list measure moment staff voice 'beam)))

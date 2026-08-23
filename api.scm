@@ -463,10 +463,13 @@
 
         ; detect key changes
         ((key-change-event engraver event)
-         (let ((musicstep (ly:context-property context ctprop::export-step))
-               (music (ly:event-property event 'music-cause))
-               (staff-id (ly:context-property context ctprop::staff-id)))
-           (tree-set! musicstep (list staff-id 'keysig) music)
+         (let* ((musicstep (ly:context-property context ctprop::export-step))
+                (staff-id (ly:context-property context ctprop::staff-id))
+                ; the per-degree alteration alist is all MusicXML.scm needs
+                ; to compute <fifths>.
+                (alist (ly:context-property context 'keyAlterations)))
+           (tree-set! musicstep (list staff-id 'keysig) alist)
+           (tree-set! musicstep '(keysig) alist)
            ))
 
         ; detect time signatures
