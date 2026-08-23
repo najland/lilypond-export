@@ -430,7 +430,6 @@
     (let ((id 0))
       (make-engraver
        ((initialize trans)
-        ; TODO StaffGroup hierarchy! -> ly:context-property-where-defined !
         (let* ((parent-context (ly:context-find context 'Score)) ;(ly:context-parent context)) ; look in parent context for current staff count
                 (psc (ly:context-property parent-context ctprop::staff-context-count 0)))
           (set! psc (1+ psc))
@@ -439,6 +438,14 @@
           (ly:context-set-property! context ctprop::staff-id id)
           (ly:message "init Staff ~A" id)
           (ly:context-set-property! context ctprop::export-step (tree-create 'timestep))
+          ; remember this staff's instrument name (e.g. from \with {
+          ; instrumentName = "..." }), so MusicXML.scm can use it instead
+          ; of the generic "Part N" fallback
+          (let ((iname (ly:context-property context 'instrumentName #f))
+                (short (ly:context-property context 'shortInstrumentName #f))
+                (musicexport (ly:context-property parent-context ctprop::music-export)))
+            (if (tree? musicexport)
+                (tree-set! musicexport (list 'partname id) (cons iname short))))
           ))
 
        ((start-translation-timestep trans)

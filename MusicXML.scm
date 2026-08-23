@@ -238,9 +238,13 @@
           (writeln "<part-list>")
           (for-each
            (lambda (staff)
-             (writeln "<score-part id=\"P~A\">" staff)
-             (writeln "<part-name>Part ~A</part-name>" staff)
-             (writeln "</score-part>")
+             (let* ((pname (tree-get musicexport (list 'partname staff)))
+                    (name (if (and (pair? pname) (string? (car pname))) (car pname) (format #f "Part ~A" staff)))
+                    (abbr (and (pair? pname) (string? (cdr pname)) (cdr pname))))
+               (writeln "<score-part id=\"P~A\">" staff)
+               (writeln "<part-name>~A</part-name>" name)
+               (if abbr (writeln "<part-abbreviation>~A</part-abbreviation>" abbr))
+               (writeln "</score-part>"))
              ) staff-list)
           (writeln "</part-list>")
 
