@@ -66,6 +66,7 @@
 (define ctprop::export-step 'music-export-step)
 (define ctprop::lyrics 'lyric-events)
 (define ctprop::lyric-hyphen-box 'lyric-hyphen-box)
+(define ctprop::tie-pending 'tie-pending)
 
 ; The use of '@@' indicates bad code style! But how else can we add context properties in external code?
 ; add used context-properties
@@ -79,6 +80,7 @@
 ((@@ (lily) translator-property-description) ctprop::export-step tree? "Music export step store")
 ((@@ (lily) translator-property-description) ctprop::lyrics list? "current lyric events")
 ((@@ (lily) translator-property-description) ctprop::lyric-hyphen-box pair? "mutable box marking whether the last lyric syllable is followed by a hyphen")
+((@@ (lily) translator-property-description) ctprop::tie-pending (lambda (x) (or (not x) (ly:pitch? x))) "pitch a tie is waiting to continue into on this voice's next note")
 
 ; combine note-events to event-chord
 (define (combine-notes current music)
@@ -201,6 +203,16 @@
                    ((memq (ly:music-property music 'name) '(NoteEvent RestEvent))
                     (let ((dur (ly:event-property event 'duration)))
 
+                      ; ties: the receiving note of a tie carries no event of
+                      ; its own, so we track "waiting to tie into pitch X" on
+                      ; the voice across notes and mark a match as tie-stop
+                      (if (eq? 'NoteEvent (ly:music-property music 'name))
+                          (let ((pending (ly:context-property context ctprop::tie-pending #f))
+                                (pitch (ly:music-property music 'pitch)))
+                            (if (and (ly:pitch? pending) (ly:pitch? pitch) (equal? pending pitch))
+                                (tree-set! musicstep `(,@steppath tie) (cons 'stop (or (tree-get musicstep `(,@steppath tie)) '()))))
+                            (ly:context-set-property! context ctprop::tie-pending #f)))
+
                       ; track shortest duration (musicXML/MEI divisions)
                       (let ((shortdur (tree-get musicexport '(division-dur))))
                         (if (and (ly:duration? dur)(or (not shortdur) (ly:duration<? dur shortdur)))
@@ -263,6 +275,16 @@
                           (do ((i 0 (1+ i))) ((= i n))
                             (tree-set! musicexport (list (+ bar i) (ly:make-moment 0) staff-id voice-id)
                               (make-music 'RestEvent 'duration (moment->duration mlen)))))))
+
+                   ((eq? (ly:music-property music 'name) 'TieEvent)
+                    ; fires right after the note it starts from; mark that
+                    ; note tie-start and remember its pitch so the next
+                    ; matching note gets marked tie-stop (see NoteEvent above)
+                    (let ((stored (tree-get musicstep steppath)))
+                      (if (music-is? stored 'NoteEvent)
+                          (begin
+                           (tree-set! musicstep `(,@steppath tie) (cons 'start (or (tree-get musicstep `(,@steppath tie)) '())))
+                           (ly:context-set-property! context ctprop::tie-pending (ly:music-property stored 'pitch))))))
 
                    ((eq? (ly:music-property music 'name) 'SlurEvent)
                     ; a slur on a whole chord only fires as its own event, not a note articulation

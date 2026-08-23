@@ -133,6 +133,14 @@
     (define (writeslurs marks)
       (for-each (lambda (m) (writeln "<notations><slur type=\"~A\" number=\"1\"/></notations>" (if (eq? m 'start) "start" "stop")))
         (if (list? marks) marks '())))
+    (define (writetie marks)
+      ; <tie> (duration/playback) goes right after <duration>; <tied>
+      ; (the visual notation) goes in <notations>, written by writemusic
+      (for-each (lambda (m) (writeln "<tie type=\"~A\"/>" (if (eq? m 'start) "start" "stop")))
+        (if (list? marks) marks '())))
+    (define (writetied marks)
+      (for-each (lambda (m) (writeln "<notations><tied type=\"~A\"/></notations>" (if (eq? m 'start) "start" "stop")))
+        (if (list? marks) marks '())))
     (define (acctext accidental)
       (case accidental
         ((0) "natural")
@@ -149,6 +157,7 @@
             (tuplet (ly:assoc-get 'tuplet opts))
             (lyrics (ly:assoc-get 'lyrics opts))
             (slur (ly:assoc-get 'slur opts))
+            (tie (ly:assoc-get 'tie opts))
             (moment (ly:assoc-get 'moment opts)))
 ;(ly:message "-----> lyrics ~A" lyrics)
         (case (ly:music-property m 'name)
@@ -158,6 +167,7 @@
            (if chord (writeln "<chord />"))
            (writepitch (ly:music-property m 'pitch))
            (writeduration dur moment)
+           (writetie (if chord '() tie))
 
            (writeln "<voice>~A</voice>" voice)
            (writetype dur)
@@ -169,6 +179,7 @@
            (writetimemod dur)
            (writetuplet tuplet)
            (writeslurs (if chord '() slur))
+           (writetied (if chord '() tie))
            (if (and (not chord) (list? lyrics))
                (for-each
                 (lambda (indexed-lyric)
@@ -320,6 +331,7 @@
                                     (tuplet (tree-get musicexport (list measure moment staff voice 'tuplet)))
                                     (lyrics (tree-get musicexport (list measure moment staff voice 'lyrics)))
                                     (slur (tree-get musicexport (list measure moment staff voice 'slur)))
+                                    (tie (tree-get musicexport (list measure moment staff voice 'tie)))
                                     )
                                 (case beam
                                   ((start) (set! beamcont 'continue))
@@ -336,7 +348,8 @@
                                   `(moment . ,moment)
                                   `(tuplet . ,tuplet)
                                   `(lyrics . ,lyrics)
-                                  `(slur . ,slur))
+                                  `(slur . ,slur)
+                                  `(tie . ,tie))
                                 (if (ly:duration? dur)
                                     (set! backup (+ backup (* (duration-factor dur) divisions))))
                                 ))
