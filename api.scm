@@ -202,6 +202,14 @@
                      (eq? 'PageBreakEvent (ly:music-property music 'name))
                      (eq? 'force (ly:music-property music 'break-permission)))
                 (tree-set! musicexport (list bar moment 'pagebreak) #t))
+            ; \tempo: stored globally (not per staff) like breaks, since a
+            ; shared Global.ily typically pulls it into every staff, but
+            ; MusicXML.scm only writes it once, on the first part
+            (if (and (ly:music? music) (eq? 'TempoChangeEvent (ly:music-property music 'name)))
+                (tree-set! musicexport (list bar moment 'tempo)
+                  (list (ly:music-property music 'text #f)
+                        (ly:music-property music 'metronome-count #f)
+                        (ly:music-property music 'tempo-unit #f))))
             ; notes and rests are stored in the tree under measeure/moment/staff/voice
             ; TODO MultiMeasureRests, Upbeats
             (if (and (ly:music? music) (= 0 (ly:moment-grace moment))) ; Drop grace notes!

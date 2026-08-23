@@ -305,6 +305,25 @@
                     ((tree-get musicexport (list measure (ly:make-moment 0) 'linebreak))
                      (writeln "<print new-system=\"yes\"/>")))))
 
+             ; \tempo is global (not per staff), so only the first part
+             ; carries it, same convention as writebreak above
+             (define (writetempo measure moment)
+               (if (= staff (car staff-list))
+                   (let ((tempodata (tree-get musicexport (list measure moment 'tempo))))
+                     (if (list? tempodata)
+                         (let ((text (list-ref tempodata 0))
+                               (count (list-ref tempodata 1))
+                               (unit (list-ref tempodata 2)))
+                           (writeln "<direction placement=\"above\">")
+                           (if (and (ly:duration? unit) count)
+                               (writeln "<direction-type><metronome><beat-unit>~A</beat-unit><per-minute>~A</per-minute></metronome></direction-type>"
+                                 (list-ref types (+ 2 (ly:duration-log unit))) count))
+                           (if (string? text)
+                               (writeln "<direction-type><words>~A</words></direction-type>" text))
+                           (if (and (ly:duration? unit) count)
+                               (writeln "<sound tempo=\"~A\"/>" (inexact->exact (round (* count (duration-factor unit))))))
+                           (writeln "</direction>"))))))
+
              (writeln "<part id=\"P~A\">" staff)
 
              (for-each
@@ -327,6 +346,7 @@
                         (writeln "<time><beats>~A</beats><beat-type>~A</beat-type></time>" (car meter)(cdr meter))))
                   (writeclef measure first-moment #f)
                   (writeln "</attributes>")
+                  (writetempo measure first-moment)
 
                   (for-each
                    (lambda (voice)
@@ -338,7 +358,8 @@
                           (if (not (equal? moment (ly:make-moment 0)))
                               (begin
                                (writekey measure moment #t)
-                               (writeclef measure moment #t)))
+                               (writeclef measure moment #t)
+                               (writetempo measure moment)))
                           (if (ly:music? music)
                               (let ((dur (ly:music-property music 'duration))
                                     (beam (tree-get musicexport (list measure moment staff voice 'beam)))
