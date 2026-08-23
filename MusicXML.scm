@@ -206,16 +206,19 @@
            (writeln "</note>"))
 
           ((RestEvent)
-           (writeln "<note>")
-           (writeln "<rest />")
-           (writeduration dur moment)
+           (let ((wholemeasure (ly:music-property m 'measure-rest #f)))
+             (writeln "<note>")
+             (writeln (if wholemeasure "<rest measure=\"yes\" />" "<rest />"))
+             (writeduration dur moment)
 
-           (writeln "<voice>~A</voice>" voice)
-           (writetype dur)
-           (writedots (if (ly:duration? dur) (ly:duration-dot-count dur) 0))
-           (writetimemod dur)
-           (writetuplet tuplet)
-           (writeln "</note>"))
+             (writeln "<voice>~A</voice>" voice)
+             (if (not wholemeasure)
+                 (begin
+                  (writetype dur)
+                  (writedots (if (ly:duration? dur) (ly:duration-dot-count dur) 0))))
+             (writetimemod dur)
+             (writetuplet tuplet)
+             (writeln "</note>")))
 
           ((EventChord)
            (let* ((elements (ly:music-property m 'elements))

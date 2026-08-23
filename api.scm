@@ -286,7 +286,7 @@
                       (if (and n (> n 0))
                           (do ((i 0 (1+ i))) ((= i n))
                             (tree-set! musicexport (list (+ bar i) (ly:make-moment 0) staff-id voice-id)
-                              (make-music 'RestEvent 'duration (moment->duration mlen)))))))
+                              (make-music 'RestEvent 'duration (moment->duration mlen) 'measure-rest #t))))))
 
                    ((eq? (ly:music-property music 'name) 'TieEvent)
                     ; fires right after the note it starts from; mark that
