@@ -44,6 +44,11 @@
  (lilypond-export Humdrum)
  (lily))
 
+; hands (tree filename exporter written?) from scoreExporter's finalize to
+; installExportTrigger's wrapped toplevel-book-handler below, since line
+; breaks are only decided after finalize runs
+(define pending-export (list #f #f #f #f))
+
 (re-export exportLilyPond)
 (re-export exportMusicXML)
 (re-export exportHumdrum)
@@ -190,6 +195,13 @@
                 (music (ly:event-property event 'music-cause))
                 (bar (ly:context-property context 'currentBarNumber 1))
                 (moment (ly:context-property context 'measurePosition (ly:make-moment 0))))
+            ; \pageBreak: automatic page-break decisions aren't reliably
+            ; observable (unlike line breaks, see afterLineBreakingHook
+            ; below), so we only capture explicit \pageBreak here
+            (if (and (ly:music? music)
+                     (eq? 'PageBreakEvent (ly:music-property music 'name))
+                     (eq? 'force (ly:music-property music 'break-permission)))
+                (tree-set! musicexport (list bar moment 'pagebreak) #t))
             ; notes and rests are stored in the tree under measeure/moment/staff/voice
             ; TODO MultiMeasureRests, Upbeats
             (if (and (ly:music? music) (= 0 (ly:moment-grace moment))) ; Drop grace notes!
@@ -497,6 +509,8 @@
                ))
           (tree-set! musicexport (list bar moment 'mlength) mlen)
           (tree-set! musicexport (list bar moment id 'mlength) mlen)
+          (if (equal? moment (ly:make-moment 0))
+              (tree-set! musicexport (list 'barmoments bar) (ly:context-current-moment context)))
 
           (if (tree? step)
               (tree-walk step '()
@@ -572,6 +586,7 @@
          ((initialize trans)
           (ly:message "init ~A: \"~A\"" (procedure-name exporter) filename)
           (ly:context-set-property! context ctprop::music-export (tree-create ctprop::music-export))
+          (set! pending-export (list #f #f #f #f))
           )
          ((finalize trans)
           (let ((musicexport (ly:context-property context ctprop::music-export)))
@@ -581,14 +596,55 @@
             ;(for-each (lambda (sym) (ly:message "~A: ~A" sym (tree-get musicexport (list sym))))
             ;  (filter symbol? (tree-get-keys musicexport '())))
             ;(tree-display musicexport)
-            (exporter musicexport filename)
+            ; deferred: line breaks aren't decided yet at finalize time
+            (set! pending-export (list musicexport filename exporter #f))
             ))
          ))
       )))
 
+; called via \override NonMusicalPaperColumn.after-line-breaking; this is the
+; earliest point at which LilyPond has actually decided where systems start,
+; so every real line break (explicit or automatic) gets recorded here
+(define-public (afterLineBreakingHook grob)
+  (let ((musicexport (list-ref pending-export 0))
+        (when-mom (ly:grob-property grob 'when #f)))
+    (if (and (tree? musicexport) (ly:moment? when-mom)
+             (= 1 (ly:item-break-dir grob)) (ly:moment<? (ly:make-moment 0) when-mom))
+        (let ((bar (moment->bar musicexport when-mom)))
+          (if bar (tree-set! musicexport (list bar (ly:make-moment 0) 'linebreak) #t)))))
+  #f)
+
+; find which bar starts at or immediately before the given absolute moment
+(define (moment->bar musicexport mom)
+  (let ((bars (or (tree-get-keys musicexport '(barmoments)) '()))
+        (best #f) (best-mom #f))
+    (for-each
+     (lambda (bar)
+       (let ((bm (tree-get musicexport (list 'barmoments bar))))
+         (if (and (ly:moment? bm) (not (ly:moment<? mom bm)) (or (not best-mom) (ly:moment<? best-mom bm)))
+             (begin (set! best bar) (set! best-mom bm)))))
+     bars)
+    best))
+
+; wraps the *caller's* toplevel-book-handler (current-module here is the
+; caller's, not this library's) to fire the export after everything -
+; breaking, layout, output - is truly done. Safe to call repeatedly.
+(define-public (installExportTrigger)
+  (let* ((mod (current-module))
+         (original (module-ref mod 'toplevel-book-handler)))
+    (module-set! mod 'toplevel-book-handler
+      (lambda (book)
+        (original book)
+        (let ((musicexport (list-ref pending-export 0)))
+          (if (and (tree? musicexport) (not (list-ref pending-export 3)))
+              (begin
+               ((list-ref pending-export 2) musicexport (list-ref pending-export 1))
+               (set! pending-export (list #f #f #f #t)))))))))
+
 ; create output-definition (layout) with file exporter
 (define-public FileExport
   (define-scheme-function (options)(list?)
+    (installExportTrigger)
     #{
       \layout {
         \context {
@@ -606,6 +662,7 @@
         \context {
           \Score
           \consists \scoreExporter #options
+          \override NonMusicalPaperColumn.after-line-breaking = #afterLineBreakingHook
         }
       }
     #}))

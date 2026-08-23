@@ -291,6 +291,17 @@
                        (if doattr (writeln "</attributes>"))
                        ))))
 
+             ; \break/\pageBreak are global (not per-staff), so only the
+             ; first part carries the <print> tag -- that's the convention
+             ; most software follows and is enough for correct display
+             (define (writebreak measure)
+               (if (= staff (car staff-list))
+                   (cond
+                    ((tree-get musicexport (list measure (ly:make-moment 0) 'pagebreak))
+                     (writeln "<print new-page=\"yes\"/>"))
+                    ((tree-get musicexport (list measure (ly:make-moment 0) 'linebreak))
+                     (writeln "<print new-system=\"yes\"/>")))))
+
              (writeln "<part id=\"P~A\">" staff)
 
              (for-each
@@ -303,6 +314,7 @@
                   (if (> (length moment-list) 0) (set! first-moment (car moment-list)))
 
                   (writeln "<measure number=\"~A\">" measure)
+                  (writebreak measure)
 
                   (writeln "<attributes>")
                   (writeln "<divisions>~A</divisions>" divisions) ; divisions by measure?
