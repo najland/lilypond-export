@@ -320,6 +320,26 @@
                       (tree-set! musicstep `(,@steppath slur)
                         (cons (if (eqv? -1 dir) 'start 'stop) (if (list? marks) marks '())))))
 
+                   ((eq? (ly:music-property music 'name) 'AbsoluteDynamicEvent)
+                    ; e.g. \f \p \mf \sfz -- the raw mark name, MusicXML.scm
+                    ; maps it to the matching <dynamics> child tag
+                    (let ((marks (tree-get musicstep `(,@steppath dynamics))))
+                      (tree-set! musicstep `(,@steppath dynamics)
+                        (cons (ly:music-property music 'text) (if (list? marks) marks '())))))
+
+                   ((memq (ly:music-property music 'name) '(CrescendoEvent DecrescendoEvent))
+                    ; \! (the stop marker) always reports as a CrescendoEvent
+                    ; with span-direction 1, regardless of whether it closes
+                    ; a crescendo or decrescendo -- so the wedge TYPE only
+                    ; needs to be read off the start event
+                    (let* ((dir (ly:music-property music 'span-direction))
+                           (marks (tree-get musicstep `(,@steppath wedge)))
+                           (kind (if (eqv? -1 dir)
+                                     (if (eq? 'CrescendoEvent (ly:music-property music 'name)) 'crescendo 'diminuendo)
+                                     'stop)))
+                      (tree-set! musicstep `(,@steppath wedge)
+                        (cons kind (if (list? marks) marks '())))))
+
                    ((and (eq? (ly:music-property music 'name) 'ArticulationEvent)
                          (eq? 'fermata (ly:music-property music 'articulation-type)))
                     ; same story as all articulations below: on a whole chord

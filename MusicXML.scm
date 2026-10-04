@@ -135,6 +135,22 @@
         (if (list? marks) marks '())))
     (define (writefermata has-fermata)
       (if has-fermata (writeln "<notations><fermata/></notations>")))
+    ; most LilyPond dynamic mark names (\f \p \mf \sfz ...) are already
+    ; valid MusicXML <dynamics> child tags verbatim; the few LilyPond marks
+    ; that AREN'T standard MusicXML tags fall back to <other-dynamics>
+    (define dynamics-exceptions '((sff . "sff") (sp . "sp") (spp . "spp")))
+    (define (writedynamics marks)
+      (for-each
+       (lambda (mark)
+         (let ((exc (assq mark dynamics-exceptions)))
+           (writeln "<direction placement=\"below\"><direction-type><dynamics>~A</dynamics></direction-type></direction>"
+             (if exc (format #f "<other-dynamics>~A</other-dynamics>" (cdr exc))
+                 (format #f "<~A/>" mark)))))
+       (if (list? marks) marks '())))
+    (define (writewedge marks)
+      (for-each
+       (lambda (kind) (writeln "<direction><direction-type><wedge type=\"~A\" number=\"1\"/></direction-type></direction>" kind))
+       (if (list? marks) marks '())))
     ; maps LilyPond articulation-type symbols to (xml-group . xml-tag);
     ; anything not in this table is silently skipped
     (define articulation-xml-map
@@ -422,11 +438,16 @@
                                     (fermata (tree-get musicexport (list measure moment staff voice 'fermata)))
                                     (articulations (tree-get musicexport (list measure moment staff voice 'articulations)))
                                     (tie (tree-get musicexport (list measure moment staff voice 'tie)))
+                                    (dynamics (tree-get musicexport (list measure moment staff voice 'dynamics)))
+                                    (wedge (tree-get musicexport (list measure moment staff voice 'wedge)))
                                     )
                                 (case beam
                                   ((start) (set! beamcont 'continue))
                                   ((end) (set! beamcont #f))
                                   )
+
+                                (writewedge wedge)
+                                (writedynamics dynamics)
 
                                 ; TODO staff grouping!
                                 (writemusic music 1 voice
